@@ -1,97 +1,164 @@
-This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
+# SSL Pinning in React Native (Android & iOS)
 
-# Getting Started
+This guide provides step-by-step instructions for implementing SSL Pinning in a React Native project using native code for both Android (Kotlin) and iOS (Swift).
 
-> **Note**: Make sure you have completed the [Set Up Your Environment](https://reactnative.dev/docs/set-up-your-environment) guide before proceeding.
+## Prerequisites
 
-## Step 1: Start Metro
+- React Native installed
+- Xcode (for iOS)
+- Android Studio (for Android)
+- CocoaPods installed (for iOS dependencies)
 
-First, you will need to run **Metro**, the JavaScript build tool for React Native.
+---
 
-To start the Metro dev server, run the following command from the root of your React Native project:
+## Android (Using OkHttp & CertificatePinner)
 
-```sh
-# Using npm
-npm start
+### Dependencies
 
-# OR using Yarn
-yarn start
+Add the required dependencies to your `android/app/build.gradle`:
+
+```gradle
+dependencies {
+    implementation 'com.squareup.okhttp3:okhttp:4.9.3'
+    implementation 'com.squareup.okhttp3:logging-interceptor:4.9.3'
+}
 ```
 
-## Step 2: Build and run your app
+### Implementation
 
-With Metro running, open a new terminal window/pane from the root of your React Native project, and use one of the following commands to build and run your Android or iOS app:
+Create a custom `OkHttpClientFactory` class in `android/app/src/main/java/com/yourapp/SSLPinningFactory.kt`:
 
-### Android
+```kotlin
+package com.yourapp
 
-```sh
-# Using npm
-npm run android
+import android.util.Log
+import com.facebook.react.modules.network.OkHttpClientFactory
+import com.facebook.react.modules.network.OkHttpClientProvider
+import okhttp3.CertificatePinner
+import okhttp3.OkHttpClient
+import okhttp3.logging.HttpLoggingInterceptor
 
-# OR using Yarn
-yarn android
+class SSLPinningFactory : OkHttpClientFactory {
+    companion object {
+        private const val hostname = "jsonplaceholder.typicode.com"
+        private val sha256Keys = listOf(
+            "sha256/Cl7dc6nofBuxRWuGgnZc9Fi/VYDPg608JSN91g/wQXA=" // Replace with your actual pin
+        )
+    }
+
+    override fun createNewNetworkModuleClient(): OkHttpClient {
+        val certificatePinner = CertificatePinner.Builder().apply {
+            sha256Keys.forEach { add(hostname, it) }
+        }.build()
+
+        val loggingInterceptor = HttpLoggingInterceptor { message ->
+            Log.e("Network", message)
+        }.apply {
+            level = HttpLoggingInterceptor.Level.BODY
+        }
+
+        return OkHttpClientProvider.createClientBuilder()
+            .certificatePinner(certificatePinner)
+            .addInterceptor(loggingInterceptor)
+            .build()
+    }
+}
 ```
 
-### iOS
+### Register Custom SSL Pinning Factory
 
-For iOS, remember to install CocoaPods dependencies (this only needs to be run on first clone or after updating native deps).
+Modify `MainApplication.java` to register the custom SSL Pinning factory:
 
-The first time you create a new project, run the Ruby bundler to install CocoaPods itself:
-
-```sh
-bundle install
+```java
+@Override
+public void onCreate() {
+    super.onCreate();
+    OkHttpClientProvider.setOkHttpClientFactory(new SSLPinningFactory());
+}
 ```
 
-Then, and every time you update your native dependencies, run:
+---
 
-```sh
-bundle exec pod install
+## iOS (Using TrustKit in Swift)
+
+### Dependencies
+
+Install TrustKit via CocoaPods by adding this to your `ios/Podfile`:
+
+```ruby
+pod 'TrustKit'
 ```
 
-For more information, please visit [CocoaPods Getting Started guide](https://guides.cocoapods.org/using/getting-started.html).
+Run:
 
 ```sh
-# Using npm
-npm run ios
-
-# OR using Yarn
-yarn ios
+cd ios && pod install
 ```
 
-If everything is set up correctly, you should see your new app running in the Android Emulator, iOS Simulator, or your connected device.
+### Implementation
 
-This is one way to run your app — you can also build it directly from Android Studio or Xcode.
+Modify `AppDelegate.swift` to configure SSL Pinning:
 
-## Step 3: Modify your app
+```swift
+import TrustKit
 
-Now that you have successfully run the app, let's make changes!
+@UIApplicationMain
+class AppDelegate: UIResponder, UIApplicationDelegate {
 
-Open `App.tsx` in your text editor of choice and make some changes. When you save, your app will automatically update and reflect these changes — this is powered by [Fast Refresh](https://reactnative.dev/docs/fast-refresh).
+    var window: UIWindow?
 
-When you want to forcefully reload, for example to reset the state of your app, you can perform a full reload:
+    func application(
+        _ application: UIApplication,
+        didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
+    ) -> Bool {
 
-- **Android**: Press the <kbd>R</kbd> key twice or select **"Reload"** from the **Dev Menu**, accessed via <kbd>Ctrl</kbd> + <kbd>M</kbd> (Windows/Linux) or <kbd>Cmd ⌘</kbd> + <kbd>M</kbd> (macOS).
-- **iOS**: Press <kbd>R</kbd> in iOS Simulator.
+        let trustKitConfig: [String: Any] = [
+            kTSKSwizzleNetworkDelegates: true,
+            kTSKPinnedDomains: [
+                "jsonplaceholder.typicode.com": [
+                    kTSKIncludeSubdomains: true,
+                    kTSKEnforcePinning: true,
+                    kTSKDisableDefaultReportUri: true,
+                    kTSKPublicKeyHashes: [
+                        "Cl7dc6nofBuxRWuGgnZc9Fi/VYDPg608JSN91g/wQXA=" // Replace with actual pin
+                    ]
+                ]
+            ]
+        ]
 
-## Congratulations! :tada:
+        TrustKit.initSharedInstance(withConfiguration: trustKitConfig)
 
-You've successfully run and modified your React Native App. :partying_face:
+        return true
+    }
+}
+```
 
-### Now what?
+### Verifying SSL Pinning
 
-- If you want to add this new React Native code to an existing application, check out the [Integration guide](https://reactnative.dev/docs/integration-with-existing-apps).
-- If you're curious to learn more about React Native, check out the [docs](https://reactnative.dev/docs/getting-started).
+To test SSL Pinning, use a proxy tool like Charles Proxy or mitmproxy and attempt to intercept requests. If SSL Pinning is correctly configured, requests will fail when a proxy is enabled.
 
-# Troubleshooting
+---
 
-If you're having issues getting the above steps to work, see the [Troubleshooting](https://reactnative.dev/docs/troubleshooting) page.
+## Troubleshooting
 
-# Learn More
+### Common Issues & Fixes
 
-To learn more about React Native, take a look at the following resources:
+- **App crashes on iOS with TrustKit:** Ensure you have at least **two different** pinned keys (primary and backup).
+- **SSL Pinning still allows intercepted requests:** Make sure the certificate hashes match the actual server certificates. Use `openssl` to verify:
+  ```sh
+  openssl s_client -connect jsonplaceholder.typicode.com:443 -servername jsonplaceholder.typicode.com | openssl x509 -noout -pubkey | openssl rsa -pubin -outform der | openssl dgst -sha256 -binary | base64
+  ```
+- **Pod install issues:** Run `pod repo update && pod install` to refresh dependencies.
 
-- [React Native Website](https://reactnative.dev) - learn more about React Native.
-- [Getting Started](https://reactnative.dev/docs/environment-setup) - an **overview** of React Native and how setup your environment.
-- [Learn the Basics](https://reactnative.dev/docs/getting-started) - a **guided tour** of the React Native **basics**.
-- [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
-- [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.
+---
+
+## Conclusion
+
+This guide sets up SSL Pinning in React Native using native implementations for both Android (OkHttp) and iOS (TrustKit in Swift). Make sure to test SSL Pinning to confirm it is working correctly before releasing your app.
+
+---
+
+### References
+
+- [OkHttp SSL Pinning](https://square.github.io/okhttp/features/certificate_pinning/)
+- [TrustKit Documentation](https://github.com/datatheorem/TrustKit)
