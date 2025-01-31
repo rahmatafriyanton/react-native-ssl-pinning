@@ -2,6 +2,7 @@ import UIKit
 import React
 import React_RCTAppDelegate
 import ReactAppDependencyProvider
+import TrustKit
 
 @main
 class AppDelegate: RCTAppDelegate {
@@ -12,6 +13,24 @@ class AppDelegate: RCTAppDelegate {
     // You can add your custom initial props in the dictionary below.
     // They will be passed down to the ViewController used by React Native.
     self.initialProps = [:]
+    
+    let trustKitConfig: [String: Any] = [
+            kTSKSwizzleNetworkDelegates: true,
+            kTSKPinnedDomains: [
+                "jsonplaceholder.typicode.com": [
+                    kTSKEnforcePinning: true,
+                    kTSKIncludeSubdomains: true,
+                    kTSKPublicKeyAlgorithms: [kTSKAlgorithmRsa2048],
+                    kTSKPublicKeyHashes: [
+                      "Cl7dc6nofBuxRWuGgnZc9Fi/VYDPg608JSN91g/wQXA=",
+                      "kIdp6NNEd8wsugYyyIYFsi1ylMCED3hZbSR8ZFsa/A4="
+                    ],
+                    kTSKReportUris: ["https://your-report-endpoint.com"]
+                ]
+            ]
+        ]
+
+        TrustKit.initSharedInstance(withConfiguration: trustKitConfig)
 
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
