@@ -9,10 +9,9 @@ import okhttp3.logging.HttpLoggingInterceptor
 
 class SSLPinningFactory : OkHttpClientFactory {
   companion object {
-	private const val hostname = "dummyjson.com"
+	private const val hostname = "jsonplaceholder.typicode.com"
 	private val sha256Keys = listOf(
-	  "sha256/RBYNVi5e63XJHyeE6aRR2vcHNc92JOP+CRGgw/8nAi0=",
-	  "sha256/bdrBhpj38ffhxpubzkINl0rG+UyossdhcBYj+Zx2fcc="
+	  "sha256/Cl7dc6nofBuxRWuGgnZc9Fi/VYDPg608JSN91g/wQXA=",
 	)
   }
 

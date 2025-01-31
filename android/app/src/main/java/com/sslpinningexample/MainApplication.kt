@@ -42,7 +42,7 @@ class MainApplication : Application(), ReactApplication {
       load()
     }
 
-    OkHttpClientProvider.setOkHttpClientFactory(SSLPinningFactory())
+    //OkHttpClientProvider.setOkHttpClientFactory(SSLPinningFactory())
 
   }
 
